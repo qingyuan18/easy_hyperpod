@@ -38,15 +38,15 @@
     --vpc-config file://vpc-config.json
 
 6:登陆集群
-  安装aws ssm客户端
-  hyperpod cluster的服务器id命名规则为：sagemaker-cluster:${CLUSTER_ID}_${CONTROLLER_GROUP}-${INSTANCE_ID}
+  安装aws ssm客户端:https://docs.aws.amazon.com/zh_cn/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html
+    e.g: linux redhat: sudo yum install -y https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.rpm
 
   执行以下命令：
-  CONTROLLER_GROUP=compute-nodes
-  INSTANCE_ID=<你的集群中机器的instance id>
-  CLUSTER_ID=<你的集群id>
-  TARGET_ID=sagemaker-cluster:${CLUSTER_ID}_${CONTROLLER_GROUP}-${INSTANCE_ID}
-  aws ssm start-session --target $TARGET_ID --region <你的region,e.g: us-west-2>
+    CONTROLLER_GROUP=compute-nodes
+    INSTANCE_ID=<你的集群中机器的instance id>
+    CLUSTER_ID=<你的集群id>
+    TARGET_ID=sagemaker-cluster:${CLUSTER_ID}_${CONTROLLER_GROUP}-${INSTANCE_ID}
+    aws ssm start-session --target $TARGET_ID --region <你的region,e.g: us-west-2>
 
   集群id可以通过list-clusters找到
   e.g:
@@ -62,26 +62,23 @@
       "InstanceGroupName": "compute-nodes",
       "InstanceId": "i-0a0b864fab8cef1c2",
       "InstanceType": "ml.g5.2xlarge",
-      "LaunchTime": 1711519450.139,
-      "InstanceStatus": {
-      "Status": "Running",
-      "Message": ""
-      }
       },
       {
       "InstanceGroupName": "controller-machine",
       "InstanceId": "i-0d8ab2157a5ad294b",
       "InstanceType": "ml.m5.xlarge",
-      "LaunchTime": 1711519448.452,
-      "InstanceStatus": {
-      "Status": "Running",
-      "Message": ""
       }
       }
       ]
       } 
+    
 
-7: Enjoy your hyperpod cluster EC2 nodes
+7: 使用Hyperpod集群机器
+hyperpod cluster的服务器id命名规则为：sagemaker-cluster:${CLUSTER_ID}_${CONTROLLER_GROUP}-${INSTANCE_ID}
+使用步骤6中ssm client可以任意登陆集群任何一台服务器
+登陆后为root账户，ubuntu操作系统，可以su - ubuntu账户
+
+Enjoy your hyperpod cluster EC2 nodes usagg！
 
 
 
