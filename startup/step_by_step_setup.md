@@ -89,7 +89,7 @@ e.g: linux redhat: sudo yum install -y https://s3.amazonaws.com/session-manager-
 * 使用步骤6中ssm client可以任意登陆集群任何一台服务器
 * 登陆后为root账户，ubuntu操作系统，可以su - ubuntu账户
 
-# Enjoy your hyperpod cluster EC2 nodes usagg！
+# Enjoy your hyperpod cluster EC2 nodes usage！
 
 
 
