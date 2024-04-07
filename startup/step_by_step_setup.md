@@ -46,6 +46,12 @@
 ```
 
 ## 6:登陆集群
+  * 安装aws cli （v2）
+```
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+    unzip awscliv2.zip
+    sudo ./aws/install
+```
   * 安装aws ssm客户端:https://docs.aws.amazon.com/zh_cn/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html
 ```    
 e.g: linux redhat: sudo yum install -y https://s3.amazonaws.com/session-manager-downloads/plugin/latest/linux_64bit/session-manager-plugin.rpm

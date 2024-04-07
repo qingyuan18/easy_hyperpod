@@ -124,6 +124,11 @@ function step_6() {
     read -p "请选择客户端平台(linux/mac)? " choice
         case "$choice" in
             linux)
+                echo "安装aws cli（v2）..."
+                curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+                unzip awscliv2.zip
+                sudo ./aws/install
+
                 echo "安装linux ssm client..."
                 curl "https://s3.amazonaws.com/session-manager-downloads/plugin/latest/ubuntu_64bit/session-manager-plugin.deb" -o "session-manager-plugin.deb"
                 sudo dpkg -i session-manager-plugin.deb
