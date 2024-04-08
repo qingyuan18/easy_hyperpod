@@ -1,4 +1,4 @@
 {
 "SecurityGroupIds": ["sg-0af43c5507997cdb7","sg-0193c82932eb9f168","sg-04c9ce51b0c7665e7"],
-"Subnets": ["subnet-0903b9ae069ab927b"]
+"Subnets": ["subnet-0cd82a76a056fabab"]
 }
