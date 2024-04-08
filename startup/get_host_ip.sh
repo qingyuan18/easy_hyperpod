@@ -10,9 +10,7 @@ echo "$output" | grep -oP '(?<=NodeAddr=)\S+' > hostfile_tmp
 
 cat hostfile_tmp|while read host_name
 do
-   slot_num=$(ssh -o StrictHostKeyChecking=no ${host_name} "nvidia-smi -L | wc -l")
-   echo "${host_name}  slot=${slot_num}"
-   echo "${host_name}  slot=${slot_num}" >> hostfile
+   echo "${host_name}  " >> hostfile
 done
 
 # Print the contents of the hostfile
