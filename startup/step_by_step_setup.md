@@ -1,3 +1,4 @@
+关口机（同一VPC EC2）或者SageMaker Notebook Cli（同一VPC notebook instance）
 ## 1:配置IAM权限
   * 创建集群的账户角色(e.g: sagemaker executor role)加hyperpod cluster的policy
   * hyperpod相关权限参见hyperpod_iam_policy.json
