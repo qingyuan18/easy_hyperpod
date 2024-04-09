@@ -156,7 +156,7 @@ def main(args):
         ExecuteBashScript("./utils/install_enroot_pyxis.sh").run(node_type)
     
     ## add ssh key authentication support
-    #ExecuteBashScript("./add_ssh_pem.sh").run()
+    ExecuteBashScript("./add_ssh_pem.sh").run()
         
     print("[INFO]: Success: All provisioning scripts completed")
 
