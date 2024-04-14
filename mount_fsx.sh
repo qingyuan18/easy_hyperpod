@@ -42,6 +42,8 @@ add_to_fstab() {
   echo "$FSX_DNS_NAME@tcp:/$FSX_MOUNTNAME $MOUNT_POINT lustre defaults,noatime,flock,_netdev 0 0" | tee -a /etc/fstab  
 }
 
+
+### mount lustre（fsx） 卷的方法
 mount_fs() {
   if [[ ! -d $MOUNT_POINT ]]; then
     mkdir -p $MOUNT_POINT

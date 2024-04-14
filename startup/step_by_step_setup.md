@@ -34,10 +34,10 @@
      "Subnets": 修改为步骤2中创建或者已有的VPC私有子网，e.g: ["subnet-06e58ed7559635c88"]
 ```
 
-## 5: 拉起集群
+## 5: 拉起hyperpod集群
   * 确保你的账号在步骤1已经配置好权限
   * awscli是更新后的版本（v2）
-  * 在当前目录执行以下命令：
+  * 在当前目录执行以下拉起集群的脚本命令：
 ```
     aws sagemaker create-cluster \
     --cluster-name <你的集群名字> \
