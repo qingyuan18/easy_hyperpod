@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-### 202312 version hyperpod cluster lifecycle management script ####
+### 202312 version hyperpod cluster lifecycle management python script ####
 import argparse
 from enum import Enum
 import json
