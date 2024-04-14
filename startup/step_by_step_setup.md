@@ -39,6 +39,7 @@
   * awscli是更新后的版本（v2）
   * 在当前目录执行以下拉起集群的脚本命令：
 ```
+    ## create hyperpod cluster script ###
     aws sagemaker create-cluster \
     --cluster-name <你的集群名字> \
     --instance-groups file://cluster-config.json \

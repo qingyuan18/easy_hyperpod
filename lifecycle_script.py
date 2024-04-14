@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-### 202312 版本的hperpod集群生命周期管理脚本  ####
+### 202312 version hperpod cluster lifecyle management scripts  ####
 import argparse
 from enum import Enum
 import json

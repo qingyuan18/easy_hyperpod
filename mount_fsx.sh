@@ -43,7 +43,7 @@ add_to_fstab() {
 }
 
 
-### mount lustre（fsx） 卷的方法
+### mount lustre（fsx） volumn
 mount_fs() {
   if [[ ! -d $MOUNT_POINT ]]; then
     mkdir -p $MOUNT_POINT
