@@ -32,7 +32,7 @@ spec:
           mountPath: /dev/shm
       env:
         - name: HUGGING_FACE_HUB_TOKEN
-          value: "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"
+          value: "*******"
   volumes:
     - name: model
       hostPath:
