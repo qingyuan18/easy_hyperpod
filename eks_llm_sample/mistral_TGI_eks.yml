@@ -30,9 +30,9 @@ spec:
           mountPath: /data
         - name: shm
           mountPath: /dev/shm
-      env:
-        - name: HUGGING_FACE_HUB_TOKEN
-          value: "*******"
+      #env:
+        #- name: HUGGING_FACE_HUB_TOKEN
+        #  value: "*******"
   volumes:
     - name: model
       hostPath:

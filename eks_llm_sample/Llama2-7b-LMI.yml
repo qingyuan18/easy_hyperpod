@@ -31,8 +31,8 @@ spec:
         - name: shm
           mountPath: /dev/shm
       env:
-        - name: HUGGING_FACE_HUB_TOKEN
-          value: "*******"
+        #- name: HUGGING_FACE_HUB_TOKEN
+        #  value: "*******"
         - name: OPTION_MODEL_ID
           value: "TheBloke/Llama-2-7B-Chat-fp16"
   volumes:
