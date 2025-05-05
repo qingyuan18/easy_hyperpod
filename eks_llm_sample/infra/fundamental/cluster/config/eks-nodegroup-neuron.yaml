@@ -1,0 +1,71 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eks-cluster-llm
+  region: us-east-1
+  version: "1.29"
+
+kubernetesNetworkConfig:
+  ipFamily: IPv4
+
+nodeGroups:
+  # - name: node-group-inf1
+  #   instanceType: inf1.xlarge
+  #   desiredCapacity: 1
+  #   minSize: 1
+  #   maxSize: 3
+  #   volumeSize: 100
+  #   ssh:
+  #     allow: true
+  #     publicKeyName: ec2-kp-oregon
+  #   labels:
+  #     role: neuron-worker
+  #   privateNetworking: false
+  #   volumeType: gp3
+  #   volumeIOPS: 6000
+  #   volumeThroughput: 250
+  #   taints:
+  #     - key: neuron-load
+  #       value: "true"
+  #       effect: NoSchedule
+
+  # - name: node-group-inf2
+  #   instanceType: inf2.24xlarge
+  #   desiredCapacity: 1
+  #   minSize: 1
+  #   maxSize: 3
+  #   volumeSize: 100
+  #   ssh:
+  #     allow: true
+  #     publicKeyName: ec2-kp-us-east-1
+  #   labels:
+  #     role: neuron-worker
+  #   privateNetworking: false
+  #   volumeType: gp3
+  #   volumeIOPS: 6000
+  #   volumeThroughput: 250
+  #   taints:
+  #     - key: neuron-load
+  #       value: "true"
+  #       effect: NoSchedule
+
+  - name: node-group-trn
+    instanceType: trn1.2xlarge
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 3
+    volumeSize: 100
+    ssh:
+      allow: true
+      publicKeyName: ec2-kp-us-east-1
+    labels:
+      role: neuron-worker
+    privateNetworking: false
+    volumeType: gp3
+    volumeIOPS: 6000
+    volumeThroughput: 500
+    taints:
+      - key: neuron-load
+        value: "true"
+        effect: NoSchedule

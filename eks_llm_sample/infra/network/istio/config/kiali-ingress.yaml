@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: istio-system
+  name: ingress-for-kiali
+  labels:
+    app: ingress-for-kiali
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/healthcheck-path: /kiali
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:928808346782:certificate/cece4bf7-79d6-4ce9-b8d4-84c575579ae5
+    alb.ingress.kubernetes.io/group.name: "llm-on-eks"
+spec:
+  ingressClassName: alb
+  rules:
+  - host: kiali.yugaozh-flow.com
+    http:
+      paths:
+      - path: /kiali
+        pathType: Prefix
+        backend:
+          service:
+            name: kiali
+            port:
+              number: 20001

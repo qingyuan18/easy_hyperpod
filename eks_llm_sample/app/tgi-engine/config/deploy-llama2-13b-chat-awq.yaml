@@ -1,0 +1,63 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tgi-engine
+  name: tgi-engine-llama2-13b-chat-awq
+  namespace: tgi
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10  # 滚动更新后, 保留的历史版本数
+  selector: # 找到匹配的RS
+    matchLabels:
+      app: tgi-engine
+      version: llama2-13b-chat-awq
+  strategy: # 更新策略
+    rollingUpdate:
+      maxSurge: 25% 
+      maxUnavailable: 25%
+    type: RollingUpdate # 更新类型, 滚动更新
+  template:
+    metadata:
+      labels:
+        app: tgi-engine
+        version: llama2-13b-chat-awq
+    spec:
+      tolerations:
+        - key: "gpu-load"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      containers:
+      - image: 928808346782.dkr.ecr.us-east-1.amazonaws.com/tgi-engine:latest
+        imagePullPolicy: Always
+        name: tgi-engine-llama2-13b-chat-awq
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        args:
+        - --model-id=$(MODEL_ID)
+        - --revision=$(REVISION)
+        - --num-shard=1
+        - --port=$(PORT)
+        - --quantize=$(QUANTIZE)
+        - --trust-remote-code
+        env:
+        - name: MODEL_ID
+          value: TheBloke/Llama-2-13B-chat-AWQ
+        - name: REVISION
+          value: "e609cfc317ae4da50bb1839b8dcc3bf3a65f0fb7"
+        - name: QUANTIZE
+          value: awq
+        - name: PORT
+          value: "8080"
+        volumeMounts:
+          - name: persistent-storage-for-models
+            mountPath: /data
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: persistent-storage-for-models
+        persistentVolumeClaim:
+          claimName: pvc-efs-tgi

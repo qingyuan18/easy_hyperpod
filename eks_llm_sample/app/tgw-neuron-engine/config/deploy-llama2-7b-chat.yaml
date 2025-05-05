@@ -1,0 +1,47 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tgw-neuron-engine
+  name: tgw-neuron-engine-llama2-7b-chat
+  namespace: tgw-neuron
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10  # 滚动更新后, 保留的历史版本数
+  selector: # 找到匹配的RS
+    matchLabels:
+      app: tgw-neuron-engine
+      version: llama2-7b-chat
+  strategy: # 更新策略
+    rollingUpdate:
+      maxSurge: 25% 
+      maxUnavailable: 25%
+    type: RollingUpdate # 更新类型, 滚动更新
+  template:
+    metadata:
+      labels:
+        app: tgw-neuron-engine
+        version: llama2-7b-chat
+    spec:
+      tolerations:
+        - key: "neuron-load"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      containers:
+      - image: 928808346782.dkr.ecr.us-east-1.amazonaws.com/tgw-neuron-engine-llama2-7b-chat:latest
+        imagePullPolicy: Always
+        name: tgw-neuron-engine-llama2-7b-chat
+        resources:
+          limits:
+            aws.amazon.com/neurondevice: 1
+        volumeMounts:
+          - name: persistent-storage-for-models
+            mountPath: /home/app/text-generation-webui/models
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: persistent-storage-for-models
+        persistentVolumeClaim:
+          claimName: pvc-efs-tgw-neuron

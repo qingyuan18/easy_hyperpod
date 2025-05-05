@@ -1,0 +1,75 @@
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: nodepool-neuron
+spec:
+  template:
+    spec:
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand", "spot"]
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: ["trn"]
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ["trn1"]
+        - key: karpenter.k8s.aws/instance-accelerator-name
+          operator: In
+          values: ["inferentia"]
+        - key: karpenter.k8s.aws/instance-cpu
+          operator: In
+          values: ["8"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: ["2xlarge"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: ["trn1.2xlarge"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: In
+          values: ["1"]
+      nodeClassRef:
+        name:  neuron-al2
+  limits:
+    cpu: 100
+  disruption:
+    consolidationPolicy: WhenUnderutilized
+    expireAfter: 720h # 30 * 24h = 720h
+---
+apiVersion: karpenter.k8s.aws/v1beta1
+kind: EC2NodeClass
+metadata:
+  name:  neuron-al2
+spec:
+  amiFamily: AL2 # Amazon Linux 2
+  role: "KarpenterNodeRole-eks-cluster-llm" # replace with your cluster name
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: eks-cluster-llm # replace with your cluster name
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: eks-cluster-llm # replace with your cluster name
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 100Gi
+        volumeType: gp3
+        iops: 300
+        encrypted: true
+        deleteOnTermination: true
+        throughput: 125
+  userData: |
+    #!/bin/bash
+    mkdir -p ~ec2-user/.ssh/
+    touch ~ec2-user/.ssh/authorized_keys
+    echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCfA0RFCjDnrwIM26y1mhtGhfdNx62ReHaM7BdAIU6e/7rs1zbthEf/SmaNgzXM2E6b/Q1TFbIv4Pt3iHsLb+Io417SevtXHIDNFt323Bow3NQ/wF+UqWrzqrHXTaAwgynaO3U6LHbswdw1PbdwUfXkpZgkc4JBXJP4MBA6iVsos7QE4o6CTHXEfwFBI+V/x56sjHEkmoD8PAAMyyWikboS3ESL1lGGnLFGVzIiQtrpqJ0YZRLph4TDf6o+nhyVdlFMJUo6xs4DLvj8GaZKCml0LBvk36fxfBeCe/CYXYVUkuI9fILCYeDkY67E5evFx9E3lh1v9Nee4IVho7PyqNmv ec2-kp" >> ~ec2-user/.ssh/authorized_keys
+    chmod -R go-w ~ec2-user/.ssh/authorized_keys
+    chown -R ec2-user ~ec2-user/.ssh

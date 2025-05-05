@@ -1,0 +1,63 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: tgw-engine
+  name: tgw-engine-rose-20b-gptq
+  namespace: tgw
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10  # 滚动更新后, 保留的历史版本数
+  selector: # 找到匹配的RS
+    matchLabels:
+      app: tgw-engine
+      version: rose-20b-gptq
+  strategy: # 更新策略
+    rollingUpdate:
+      maxSurge: 25% 
+      maxUnavailable: 25%
+    type: RollingUpdate # 更新类型, 滚动更新
+  template:
+    metadata:
+      labels:
+        app: tgw-engine
+        version: rose-20b-gptq
+    spec:
+      tolerations:
+        - key: "gpu-load"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      containers:
+      - image: 928808346782.dkr.ecr.us-east-1.amazonaws.com/tgw-engine-rose-20b-gptq:latest
+        imagePullPolicy: Always
+        name: tgw-engine-rose-20b-gptq
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        startupProbe:
+          httpGet:
+            path: /v1/models
+            port: 5000
+          initialDelaySeconds: 300
+          failureThreshold: 3
+          successThreshold: 1
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /v1/models
+            port: 5000
+          failureThreshold: 5
+          successThreshold: 1
+          timeoutSeconds: 30
+          periodSeconds: 60
+        volumeMounts:
+          - name: persistent-storage-for-models
+            mountPath: /home/app/text-generation-webui/models
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: persistent-storage-for-models
+        persistentVolumeClaim:
+          claimName: pvc-efs-tgw

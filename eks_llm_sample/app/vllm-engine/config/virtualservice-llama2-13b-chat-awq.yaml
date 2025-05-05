@@ -1,0 +1,24 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: vllm-engine-llama2-13b-chat-awq
+  namespace: vllm
+spec:
+  hosts:
+  - vllm-engine-llama2-13b-chat-awq.yugaozh-flow.com
+  gateways:
+  - gateway-vllm-engine-llama2-13b-chat-awq
+  http:
+  - route:
+    - destination:
+        host: vllm-engine-llama2-13b-chat-awq
+        port:
+          number: 8000
+        subset: v1
+      weight: 50
+    - destination:
+        host: vllm-engine-llama2-13b-chat-awq
+        port:
+          number: 8000
+        subset: v2
+      weight: 50

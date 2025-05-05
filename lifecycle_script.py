@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-### 202312 version hyperpod cluster lifecycle management python script ####
+
 import argparse
 from enum import Enum
 import json
@@ -157,6 +157,9 @@ def main(args):
     
     ## add ssh key authentication support
     ExecuteBashScript("./add_ssh_pem.sh").run()
+    
+    ## add conda env install
+    ExecuteBashScript("./add_conda.sh").run()
         
     print("[INFO]: Success: All provisioning scripts completed")
 

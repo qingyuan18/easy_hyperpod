@@ -1,0 +1,47 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: vllm-engine
+  name: vllm-engine-rose-20b-awq-v1
+  namespace: vllm
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10  # 滚动更新后, 保留的历史版本数
+  selector: # 找到匹配的RS
+    matchLabels:
+      app: vllm-engine-rose-20b-awq
+      version: v1
+  strategy: # 更新策略
+    rollingUpdate:
+      maxSurge: 25% 
+      maxUnavailable: 25%
+    type: RollingUpdate # 更新类型, 滚动更新
+  template:
+    metadata:
+      labels:
+        app: vllm-engine-rose-20b-awq
+        version: v1
+    spec:
+      tolerations:
+        - key: "gpu-load"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+      containers:
+      - image: 928808346782.dkr.ecr.us-east-1.amazonaws.com/vllm-engine-rose-20b-awq:latest
+        imagePullPolicy: Always
+        name: vllm-engine-rose-20b-awq
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        volumeMounts:
+          - name: persistent-storage-for-models
+            mountPath: /home/app/vllm-engine/models
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: persistent-storage-for-models
+        persistentVolumeClaim:
+          claimName: pvc-efs-vllm

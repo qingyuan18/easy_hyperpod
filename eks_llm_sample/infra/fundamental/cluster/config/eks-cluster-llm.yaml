@@ -1,0 +1,103 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: eks-cluster-llm
+  region: us-east-1
+  version: "1.29"
+
+# vpc:
+#   id: "vpc-02153e867c47d28c6"  # (optional, must match VPC ID used for each subnet below)
+#   cidr: "192.168.0.0/16"       # (optional, must match CIDR used by the given VPC)
+#   subnets:
+#     # must provide 'private' and/or 'public' subnets by availibility zone as shown
+#     public:
+#       us-west-2a:
+#         id: "subnet-0af5c9912790409a0"
+#         cidr: "192.168.64.0/19" # (optional, must match CIDR used by the given subnet)
+
+#       us-west-2b:
+#         id: "subnet-0fa551cc970685205"
+#         cidr: "192.168.0.0/19"  # (optional, must match CIDR used by the given subnet)
+
+#       us-west-2c:
+#         id: "subnet-0e5cc65ee1b8a890c"
+#         cidr: "192.168.32.0/19"   # (optional, must match CIDR used by the given subnet)
+
+#     private:
+#       us-west-2a:
+#         id: "subnet-086f987af734c2e9b"
+#         cidr: "192.168.160.0/19" # (optional, must match CIDR used by the given subnet)
+
+#       us-west-2b:
+#         id: "subnet-0ac268061e3a32217"
+#         cidr: "192.168.96.0/19"  # (optional, must match CIDR used by the given subnet)
+
+#       us-west-2c:
+#         id: "subnet-09bcb6f2ee56065cb"
+#         cidr: "192.168.128.0/19"   # (optional, must match CIDR used by the given subnet)
+
+kubernetesNetworkConfig:
+  ipFamily: IPv4
+
+managedNodeGroups:
+# nodeGroups:
+  - name: node-group-cpu-new
+    labels:
+      role: co-worker
+    instanceType: m7i.xlarge
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 4
+    amiFamily: Ubuntu2204
+    maxPodsPerNode: 110
+    volumeSize: 80
+    privateNetworking: false
+    volumeType: gp3
+    volumeIOPS: 3000
+    volumeThroughput: 125
+    ssh:
+      allow: true
+      publicKeyName: ec2-kp
+
+  # - name: node-group-cpu-secondary
+  #   labels:
+  #     role: co-worker
+  #   instanceType: m7i.xlarge
+  #   desiredCapacity: 1
+  #   minSize: 1
+  #   maxSize: 4
+  #   amiFamily: Ubuntu2204
+  #   volumeSize: 80
+  #   privateNetworking: false
+  #   subnets:
+  #     - subnet-038ceeac6ebfc9485
+  #   volumeType: gp3
+  #   volumeIOPS: 3000
+  #   maxPodsPerNode: 110
+  #   volumeThroughput: 125
+  #   ssh:
+  #     allow: true
+  #     publicKeyName: ec2-kp
+
+  # - name: node-group-gpu
+  #   instanceType: g5.12xlarge
+  #   desiredCapacity: 1
+  #   minSize: 1
+  #   maxSize: 3
+  #   volumeSize: 80
+  #   ssh:
+  #     allow: true
+  #     publicKeyName: ec2-kp
+  #   labels:
+  #     role: gpu-worker
+  #   privateNetworking: false
+  #   subnets:
+  #     - subnet-038ceeac6ebfc9485
+  #   volumeType: gp3
+  #   volumeIOPS: 3000
+  #   volumeThroughput: 125
+  #   taints:
+  #     - key: gpu-load
+  #       value: "true"
+  #       effect: NoSchedule

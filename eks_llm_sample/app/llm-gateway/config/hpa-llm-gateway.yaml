@@ -1,0 +1,45 @@
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: llm-gateway
+  namespace: llm-gateway
+spec:
+  scaleTargetRef:
+    # point the HPA at the sample application
+    # you created above
+    apiVersion: apps/v1
+    kind: Deployment
+    name: llm-gateway
+  # autoscale between 2 and 10 replicas
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  # use a "Pods" metric, which takes the average of the
+  # given metric across all pods controlled by the autoscaling target
+  - type: Pods
+    pods:
+      # use the metric that you used above: pods/http_requests
+      metric:
+        name: http_requests
+      # target 500 milli-requests per second,
+      # which is 1 request every two seconds
+      target:
+        type: Value
+        averageValue: 500m
+  behavior: # 这里是重点
+    scaleDown:
+      stabilizationWindowSeconds: 300 # 需要缩容时，先观察5分钟，如果一直持续需要缩容才执行缩容
+      policies:
+      - type: Percent
+        value: 100 # 允许全部缩掉
+        periodSeconds: 15
+    scaleUp:
+      stabilizationWindowSeconds: 0 # 需要扩容时，立即扩容
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15 # 每15s最大允许扩容当前1倍数量的Pod
+      - type: Pods
+        value: 4
+        periodSeconds: 15 # 每15s最大允许扩容 4 个 Pod
+      selectPolicy: Max # 使用以上两种扩容策略中算出来扩容Pod数量最大的

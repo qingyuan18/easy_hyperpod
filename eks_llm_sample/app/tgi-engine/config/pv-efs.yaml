@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-efs-tgi
+  namespace: tgi
+spec:
+  capacity:
+    storage: 500Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  storageClassName: sc-efs-static
+  persistentVolumeReclaimPolicy: Retain
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: fs-0e383d0d2309c2131::fsap-0b2a501234a0bd4db
+    # volumeAttributes:
+    #   mounttargetip: 192.168.52.171

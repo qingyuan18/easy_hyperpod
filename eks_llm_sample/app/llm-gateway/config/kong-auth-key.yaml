@@ -1,0 +1,9 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: key-auth-gateway
+  namespace: llm-gateway
+plugin: key-auth
+config:
+  key_names:
+  - apikey

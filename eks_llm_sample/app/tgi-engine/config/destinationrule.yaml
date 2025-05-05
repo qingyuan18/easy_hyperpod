@@ -1,0 +1,14 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: tgi-engine
+  namespace: tgi
+spec:
+  host: tgi-engine.tgi.svc.cluster.local
+  subsets:
+  - name: llama2-13b-chat-awq
+    labels:
+      version: llama2-13b-chat-awq
+  - name: mistral-7b
+    labels:
+      version: mistral-7b

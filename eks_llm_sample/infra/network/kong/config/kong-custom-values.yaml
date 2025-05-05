@@ -1,0 +1,39 @@
+# Specify Kong proxy service configuration
+proxy:
+  # Enable creating a Kubernetes service for the proxy
+  enabled: true
+  type: LoadBalancer
+  loadBalancerClass:
+  # Override proxy Service name
+  nameOverride: ""
+  # To specify annotations or labels for the proxy service, add them to the respective
+  # "annotations" or "labels" dictionaries below.
+  annotations: {
+    # "service.beta.kubernetes.io/aws-load-balancer-internal": "true",
+    "service.beta.kubernetes.io/aws-load-balancer-backend-protocol": "*",
+    "service.beta.kubernetes.io/aws-load-balancer-ssl-ports": "kong-proxy-tls",
+    "service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled": "true",
+    "service.beta.kubernetes.io/aws-load-balancer-ssl-cert": "arn:aws:acm:us-east-1:928808346782:certificate/cece4bf7-79d6-4ce9-b8d4-84c575579ae5",
+    "service.beta.kubernetes.io/aws-load-balancer-scheme": "internet-facing",
+    "service.beta.kubernetes.io/aws-load-balancer-type": "external"
+  }
+
+  labels:
+    enable-metrics: "true"
+  ingress:
+    # Enable/disable exposure using ingress.
+    enabled: false
+    # ingressClassName: alb
+    # To specify annotations or labels for the ingress, add them to the respective
+    # "annotations" or "labels" dictionaries below.
+    annotations: {
+      "service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled": "true",
+      "service.beta.kubernetes.io/aws-load-balancer-scheme": "internet-facing",
+      "service.beta.kubernetes.io/aws-load-balancer-proxy-protocol": "*"
+    }
+      
+    labels: {}
+    # Ingress hostname
+    hostname: kong.yugaozh-flow.com
+    # Ingress path (when used with hostname above).
+    path: /

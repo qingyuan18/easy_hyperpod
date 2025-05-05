@@ -1,0 +1,135 @@
+grafana:
+  enabled: true
+
+  adminPassword: prom-operator
+
+  ingress:
+    ## If true, Grafana Ingress will be created
+    ##
+    enabled: false
+
+    ## IngressClassName for Grafana Ingress.
+    ## Should be provided if Ingress is enable.
+    ##
+    ingressClassName: alb
+
+    ## Annotations for Grafana Ingress
+    ##
+    annotations: 
+      alb.ingress.kubernetes.io/success-codes: "302"
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:928808346782:certificate/cece4bf7-79d6-4ce9-b8d4-84c575579ae5
+
+
+    ## Labels to be added to the Ingress
+    ##
+    labels: {}
+
+    ## Hostnames.
+    ## Must be provided if Ingress is enable.
+    ##
+    # hosts:
+    #   - grafana.domain.com
+    hosts:
+      - grafana.yugaozh-flow.com
+
+    ## Path for grafana ingress
+    path: /
+
+  ## Passed to grafana subchart and used by servicemonitor below
+  ##
+  service:
+    portName: http-web
+    type: ClusterIP
+    # type: LoadBalancer
+    # type: NodePort
+
+
+# Deploy a Prometheus instance
+#
+prometheus:
+  enabled: true
+
+  ## Configuration for Prometheus service
+  ##
+  service:
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      
+    labels: {}
+    clusterIP: ""
+
+    ## Port for Prometheus Service to listen on
+    ##
+    port: 9090
+
+    ## Service type
+    ##
+    # type: LoadBalancer
+    type: ClusterIP
+
+  ingress:
+    enabled: false
+
+    # For Kubernetes >= 1.18 you should specify the ingress-controller via the field ingressClassName
+    # See https://kubernetes.io/blog/2020/04/02/improvements-to-the-ingress-api-in-kubernetes-1.18/#specifying-the-class-of-an-ingress
+    ingressClassName: alb
+
+    ## Annotations for Prometheus Ingress
+    ##
+    annotations: 
+      # alb.ingress.kubernetes.io/success-codes: "302"
+      alb.ingress.kubernetes.io/success-codes: "200"
+      alb.ingress.kubernetes.io/healthcheck-path: "/graph"
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:928808346782:certificate/cece4bf7-79d6-4ce9-b8d4-84c575579ae5
+
+    labels: {}
+
+    ## Redirect ingress to an additional defined port on the service
+    # servicePort: 8081
+
+    ## Hostnames.
+    ## Must be provided if Ingress is enabled.
+    ##
+    # hosts:
+    #   - prometheus.domain.com
+    hosts:
+      - prometheus.yugaozh-flow.com
+
+    ## Paths to use for ingress rules - one path should match the prometheusSpec.routePrefix
+    ##
+    # paths: []
+    paths:
+      - /graph
+    # - /
+
+  ## Settings affecting prometheusSpec
+  ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/api.md#prometheusspec
+  ##
+  prometheusSpec:
+    ## Tolerations for use with node taints
+    ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+    ##
+    tolerations: []
+    #  - key: "key"
+    #    operator: "Equal"
+    #    value: "value"
+    #    effect: "NoSchedule"
+
+    ## How long to retain metrics
+    ##
+    retention: 10d
+
+    ## Prometheus StorageSpec for persistent data
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/main/Documentation/user-guides/storage.md
+    ##
+    # storageSpec:
+    #   volumeClaimTemplate:
+    #     spec:
+    #       storageClassName: ebs-sc-gp3
+    #       accessModes: ["ReadWriteOnce"]
+    #       resources:
+    #         requests:
+    #           storage: 50Gi
+    #     selector: {}

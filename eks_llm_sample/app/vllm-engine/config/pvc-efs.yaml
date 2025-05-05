@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-efs-vllm
+  namespace: vllm
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc-static
+  resources:
+    requests:
+      storage: 500Gi

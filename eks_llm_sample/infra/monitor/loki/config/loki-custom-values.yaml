@@ -1,0 +1,34 @@
+loki:
+  auth_enabled: false
+  storage:
+    type: "s3"
+    s3:
+      region: "us-east-1"
+      accessKeyId: "AK"
+      secretAccessKey: "SK"
+    bucketNames:
+      chunks: "yugaozh-loki-chunks"
+      ruler: "yugaozh-loki-ruler"
+      admin: "yugaozh-loki-admin"
+  commonConfig:
+    replication_factor: 1
+
+read:
+  persistence:
+    storageClass: ebs-sc-gp3
+  replicas: 1
+
+write:
+  persistence:
+    storageClass: ebs-sc-gp3
+  replicas: 1
+
+backend:
+  persistence:
+    storageClass: ebs-sc-gp3
+  replicas: 1
+
+gateway:
+  enabled: true
+  basicAuth:
+    enabled: false

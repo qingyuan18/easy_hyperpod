@@ -1,0 +1,14 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: tgw-neuron-engine
+  namespace: tgw-neuron
+spec:
+  host: tgw-neuron-engine.tgw-neuron.svc.cluster.local
+  subsets:
+  - name: llama2-7b-chat
+    labels:
+      version: llama2-7b-chat
+  # - name: llama2-13b-chat-awq
+  #   labels:
+  #     version: llama2-13b-chat-awq

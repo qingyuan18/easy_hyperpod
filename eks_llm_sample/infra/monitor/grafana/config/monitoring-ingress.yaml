@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: monitoring
+  name: ingress-for-monitoring
+  labels:
+    app: ingress-for-monitoring
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/healthcheck-path: /graph
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:928808346782:certificate/cece4bf7-79d6-4ce9-b8d4-84c575579ae5
+    alb.ingress.kubernetes.io/group.name: "llm-on-eks"
+spec:
+  ingressClassName: alb
+  rules:
+  - host: prometheus.yugaozh-flow.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: eks-kube-prometheus-stack-prometheus
+            port:
+              number: 9090
+  - host: grafana.yugaozh-flow.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: eks-kube-prometheus-stack-grafana
+            port:
+              number: 80

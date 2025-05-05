@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kong-route-vllm-engine
+  namespace: vllm
+  annotations:
+    konghq.com/strip-path: 'true'
+spec:
+  ingressClassName: kong
+  rules:
+  - host: vllm-engine-kong-llama2-13b-chat-awq.yugaozh-flow.com
+    http:
+      paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: vllm-engine-llama2-13b-chat-awq
+            port:
+              number: 8000
+  - host: vllm-engine-kong-rose-20b-awq.yugaozh-flow.com
+    http:
+      paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: vllm-engine-rose-20b-awq
+            port:
+              number: 8000
+  - host: vllm-engine-kong-qwen-14b-chat.yugaozh-flow.com
+    http:
+      paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: vllm-engine-qwen-14b-chat
+            port:
+              number: 8000

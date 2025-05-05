@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-efs
+  labels:
+    name: pv-efs
+spec:
+  capacity:
+    storage: 500Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  storageClassName: sc-efs-static
+  persistentVolumeReclaimPolicy: Retain
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: fs-0ad39ebdfee48b2c2::fsap-09acd629a8c13c26c
+    # volumeAttributes:
+    #   mounttargetip: 192.168.52.171

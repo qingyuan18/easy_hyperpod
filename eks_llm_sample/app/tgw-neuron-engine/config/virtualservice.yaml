@@ -1,0 +1,24 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: tgw-neuron-engine
+  namespace: tgw-neuron
+spec:
+  hosts:
+  - tgw-neuron-engine.yugaozh-flow.com
+  gateways:
+  - gateway-tgw-neuron-engine
+  http:
+  - route:
+    - destination:
+        host: tgw-neuron-engine
+        port:
+          number: 5000
+        subset: llama2-7b-chat
+    #   weight: 50
+    # - destination:
+    #     host: tgw-engine-neuron
+    #     port:
+    #       number: 5000
+    #     subset: llama2-13b-chat-awq
+    #   weight: 50

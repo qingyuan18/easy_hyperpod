@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  annotations:
+    meta.helm.sh/release-name: eks-kube-prometheus-stack
+    meta.helm.sh/release-namespace: monitoring
+  name: tgi-engine
+  namespace: monitoring
+  labels:
+    release: eks-kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: tgi-engine
+  endpoints:
+  - path: /metrics
+    port: api
+    scheme: http
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    any: true

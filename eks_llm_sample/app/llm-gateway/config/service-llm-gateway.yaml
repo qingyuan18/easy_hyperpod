@@ -1,0 +1,101 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-gateway # Service名称
+  namespace: llm-gateway
+  labels:
+    app: llm-gateway    # Service自身标签
+spec:
+  ports:
+  - port: 3000  # K8S集群内部访问Service时使用的端口
+    protocol: TCP
+    targetPort: 3000  # 目标Pod的监听端口
+    name: http
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+    name: web
+  selector:
+    app: llm-gateway
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  annotations:
+    meta.helm.sh/release-name: eks-kube-prometheus-stack
+    meta.helm.sh/release-namespace: monitoring
+  name: llm-gateway
+  namespace: monitoring
+  labels:
+    release: eks-kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: llm-gateway
+  endpoints:
+  - path: /metrics
+    port: web
+    scheme: http
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    any: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: llm-gateway
+  name: llm-gateway
+  namespace: llm-gateway
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10  # 滚动更新后, 保留的历史版本数
+  selector: # 找到匹配的RS
+    matchLabels:
+      app: llm-gateway
+  strategy: # 更新策略
+    rollingUpdate:
+      maxSurge: 25% 
+      maxUnavailable: 25%
+    type: RollingUpdate # 更新类型, 滚动更新
+  template:
+    metadata:
+      labels:
+        app: llm-gateway
+    spec:
+      containers:
+      - image: 928808346782.dkr.ecr.us-east-1.amazonaws.com/llm-gateway:latest
+        imagePullPolicy: Always
+        name: llm-gateway
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 500Mi
+          requests:
+            cpu: 1000m
+            memory: 500Mi
+        startupProbe:
+          httpGet:
+            path: /api/startup
+            port: 3000
+          initialDelaySeconds: 30
+          failureThreshold: 3
+          successThreshold: 1
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /api/liveness
+            port: 3000
+          failureThreshold: 3
+          successThreshold: 1
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/readiness
+            port: 3000
+          failureThreshold: 3
+          successThreshold: 5
+          periodSeconds: 10
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30

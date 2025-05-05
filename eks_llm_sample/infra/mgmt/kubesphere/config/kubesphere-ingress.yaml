@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: kubesphere-system
+  name: ingress-for-ks-console
+  labels:
+    app: ingress-for-ks-console
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/healthcheck-path: /login
+    # alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:928808346782:certificate/cece4bf7-79d6-4ce9-b8d4-84c575579ae5
+    alb.ingress.kubernetes.io/group.name: "llm-on-eks"
+spec:
+  ingressClassName: alb
+  rules:
+  - host: kubesphere.yugaozh-flow.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ks-console
+            port:
+              number: 80

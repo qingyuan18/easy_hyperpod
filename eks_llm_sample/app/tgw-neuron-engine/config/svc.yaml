@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tgw-neuron-engine # Service名称
+  namespace: tgw-neuron
+  labels:
+    app: tgw-neuron-engine    # Service自身标签
+spec:
+  ports:
+  - port: 5000  # K8S集群内部访问Service时使用的端口
+    protocol: TCP
+    targetPort: 5000  # 目标Pod的监听端口
+    name: api
+  - port: 5005
+    protocol: TCP
+    targetPort: 5005
+    name: api-stream
+  - port: 7860
+    protocol: TCP
+    targetPort: 7860
+    name: web
+  selector:
+    app: tgw-neuron-engine

@@ -1,0 +1,12 @@
+# FROM nvcr.io/nvidia/pytorch:23.10-py3
+FROM vllm/vllm-openai
+
+RUN apt update && apt install net-tools
+RUN pip install -U pip && \
+    pip3 install vllm==0.4.0
+
+WORKDIR /home/app/vllm-engine
+
+COPY ./vllm-engine/scripts/start_rose_20b_awq.sh /home/app/vllm-engine/start_rose_20b_awq.sh
+
+ENTRYPOINT ["/home/app/vllm-engine/start_rose_20b_awq.sh"]

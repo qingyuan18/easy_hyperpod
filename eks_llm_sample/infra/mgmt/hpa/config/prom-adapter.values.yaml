@@ -1,0 +1,22 @@
+prometheus:
+  # Value is templated
+  url: http://eks-kube-prometheus-stack-prometheus.monitoring.svc
+  port: 9090
+  path: ""
+
+rules:
+  default: true
+  custom:
+  - "seriesQuery": |
+        {namespace!="",__name__!~"^container_.*"}
+    "resources":
+      "template": "<<.Resource>>"
+    "name":
+      "matches": "tgi_request_count"
+      "as": "tgi_request_per_second"
+    "metricsQuery": |
+      sum by (<<.GroupBy>>) (
+        irate (
+          <<.Series>>{<<.LabelMatchers>>}[1m]
+        )
+      )

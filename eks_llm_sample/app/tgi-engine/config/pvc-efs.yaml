@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-efs-tgi
+  namespace: tgi
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: sc-efs-static
+  resources:
+    requests:
+      storage: 500Gi

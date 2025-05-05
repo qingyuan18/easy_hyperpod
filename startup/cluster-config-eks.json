@@ -1,0 +1,53 @@
+{
+    "ClusterName": "hyperpod-cluster-eks01",
+    "Orchestrator": { 
+      "Eks": 
+      {
+        "ClusterArn": "arn:aws:eks:us-east-1:687912291502:cluster/hp-eks"
+      }
+    },
+    "InstanceGroups": [
+      {
+        "InstanceGroupName": "worker-group-1",
+        "InstanceType": "ml.g5.xlarge",
+        "InstanceCount": 1,
+        "InstanceStorageConfigs": [
+          {
+            "EbsVolumeConfig": {
+              "VolumeSizeInGB": 500
+            }
+          }
+        ],
+        "LifeCycleConfig": {
+          "SourceS3Uri": "s3://sagemaker-us-east-1-687912291502/LifeCycleScripts/base-config/eks/",
+          "OnCreate": "on_create_eks.sh"
+        },
+        "ExecutionRole": "arn:aws:iam::687912291502:role/service-role/AmazonSageMaker-ExecutionRole-20211013T113123",
+        "ThreadsPerCore": 1,
+        "OnStartDeepHealthChecks": ["InstanceStress", "InstanceConnectivity"]
+      },
+      {
+        "InstanceGroupName": "worker-group-2",
+        "InstanceType": "ml.c5.large",
+        "InstanceCount": 1,
+        "InstanceStorageConfigs": [
+          {
+            "EbsVolumeConfig": {
+              "VolumeSizeInGB": 500
+            }
+          }
+        ],
+        "LifeCycleConfig": {
+          "SourceS3Uri": "s3://sagemaker-us-east-1-687912291502/LifeCycleScripts/base-config/eks/",
+          "OnCreate": "on_create_eks.sh"
+        },
+        "ExecutionRole": "arn:aws:iam::687912291502:role/service-role/AmazonSageMaker-ExecutionRole-20211013T113123",
+        "ThreadsPerCore": 1
+      }
+    ],
+    "VpcConfig": {
+      "SecurityGroupIds": ["sg-0176fe82167b34c56","sg-021ac8869b9cdfce8","sg-0ebc984a304afacf4"],
+      "Subnets":["subnet-02a0c90865eb51a75"]
+    },
+    "NodeRecovery": "Automatic"
+}

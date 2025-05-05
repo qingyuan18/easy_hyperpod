@@ -1,0 +1,12 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: rate-limit-tgi-engine
+  namespace: tgi
+  annotations:
+    kubernetes.io/ingress.class: kong
+config:
+  minute: 10
+  policy: local
+  # policy: cluster | redis
+plugin: rate-limiting

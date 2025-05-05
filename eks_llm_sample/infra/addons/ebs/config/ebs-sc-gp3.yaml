@@ -1,0 +1,21 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-sc-gp3
+provisioner: ebs.csi.aws.com
+# reclaimPolicy: Retain # default value is Delete
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  csi.storage.k8s.io/fstype: "ext4"
+  type: "gp3"
+  # iopsPerGB: "50"
+  iops: "6000"
+  encrypted: "true"
+# allowedTopologies:
+# - matchLabelExpressions:
+#   - key: topology.ebs.csi.aws.com/zone
+#     values:
+#     - us-east-1a
+#     - us-east-1b
+#     - us-east-1c
+#     - us-east-1d
