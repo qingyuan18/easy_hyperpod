@@ -7,6 +7,7 @@
   * 可以使用已有的VPC，但需要该VPC带私有子网+公有子网，且私有子网通过nat走公有子网igw能访问外网
   * 已有的VPC需要创建S3和DynamoDB的的终端节点
   * 如果新建VPC，可以直接使用SageMakerVPC.yaml的cloudformation一键创建
+  * 测试环境，建议不配置VPC，集群会建在sagemaker service账号的默认能访问公网的VPC子网中
 
 ## 3:启动脚本准备
   * 将easy_hyperpod根目录下所有文件及子目录同步到S3桶路径
@@ -43,7 +44,7 @@
     --cluster-name <你的集群名字> \
     --instance-groups file://cluster-config.json \
     --region <你的region，e.g：us-west-2> \
-    --vpc-config file://vpc-config.json
+    --vpc-config file://vpc-config.json（测试集群不用加vpc配置项目）
 ```
 
 ## 6:登陆集群
