@@ -58,6 +58,62 @@ attach "$HP_EXEC_ROLE_NAME" AmazonEKS_CNI_Policy
 attach "$HP_EXEC_ROLE_NAME" AmazonEC2ContainerRegistryReadOnly
 attach "$HP_EXEC_ROLE_NAME" AmazonSSMManagedInstanceCore
 
+# --- VPC / ENI permissions: NOT covered by any managed policy ---------------
+# HyperPod creates a "Customer ENI" in your VPC for each node, using this role.
+# Neither AmazonSageMakerClusterInstanceRolePolicy (logs/metrics/S3/SSM only)
+# nor AmazonEKS_CNI_Policy grants the full set - the CNI policy is missing
+# CreateNetworkInterfacePermission, DeleteNetworkInterfacePermission,
+# DescribeVpcs, DescribeDhcpOptions and DescribeSecurityGroups.
+#
+# Without these the node never comes up. The cluster still reports InService
+# (zero-count groups are InService), the group sits at CurrentCount 0 with
+# ActiveOperations.Scaling=1, and HyperPod silently loops create -> fail ->
+# terminate -> recreate every ~2 min. The only place the real reason appears is
+# the cluster event stream:
+#   aws sagemaker list-cluster-events --cluster-name <c>
+#     Error: Failed to create Customer ENI for instance
+#     FailureMessage: Execution role permissions are invalid...
+hp_log "  adding inline policy hyperpod-vpc-eni (Customer ENI creation)"
+aws iam put-role-policy --role-name "$HP_EXEC_ROLE_NAME" \
+  --policy-name "hyperpod-vpc-eni" \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "EnableVpcConfig",
+        "Effect": "Allow",
+        "Action": [
+          "ec2:CreateNetworkInterface",
+          "ec2:CreateNetworkInterfacePermission",
+          "ec2:DeleteNetworkInterface",
+          "ec2:DeleteNetworkInterfacePermission",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DescribeVpcs",
+          "ec2:DescribeDhcpOptions",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DetachNetworkInterface"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "TagEnis",
+        "Effect": "Allow",
+        "Action": "ec2:CreateTags",
+        "Resource": "arn:aws:ec2:*:*:network-interface/*"
+      },
+      {
+        "Sid": "DescribeEksCluster",
+        "Effect": "Allow",
+        "Action": [
+          "eks:DescribeCluster",
+          "eks:DescribeAccessEntry"
+        ],
+        "Resource": "*"
+      }
+    ]
+  }'
+
 # AmazonSageMakerClusterInstanceRolePolicy scopes S3 reads to buckets whose
 # name contains "sagemaker". Add an explicit grant when the lifecycle bucket is
 # named something else.

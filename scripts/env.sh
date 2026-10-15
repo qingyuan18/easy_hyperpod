@@ -116,8 +116,32 @@ export HP_H200_EBS_GB="${HP_H200_EBS_GB:-500}"
 # disable them. With `:-` an empty override would silently get the default back.
 export HP_DEEP_HEALTH_CHECKS="${HP_DEEP_HEALTH_CHECKS-InstanceStress,InstanceConnectivity}"
 
-# --- Lifecycle scripts ------------------------------------------------------
-# Bucket for the on_create lifecycle scripts. The AWS managed policy
+# --- Lifecycle scripts (MANDATORY for EKS orchestration) --------------------
+# LifeCycleConfig IS required, despite what the API model suggests.
+#
+# The SageMaker API model lists only InstanceCount, InstanceGroupName and
+# ExecutionRole as required members of ClusterInstanceGroupSpecification, so
+# LifeCycleConfig *looks* optional. It is not: the service rejects the request
+# with
+#     ValidationException: LifeCycleConfig is required for instance group
+#     <name>. LifeCycleConfig must be provided for clusters with EKS
+#     orchestrator.
+# (Verified against the live API in eu-central-1.) Every instance group needs
+# SourceS3Uri + OnCreate, so the S3 bucket and the node's S3 read permission are
+# always needed too.
+#
+# There is no AWS-provided default script - you must supply one, even a no-op.
+#
+#   minimal : upload only on_create.sh, which does nothing but log. This is the
+#             smallest thing that satisfies the requirement. Default.
+#   full    : also upload on_create_main.sh, which
+#               - moves the containerd data root and kubelet dir onto the
+#                 secondary EBS volume at /opt/sagemaker (large LLM images do
+#                 not fit on the root volume)
+#               - installs the EFA-aware FSx Lustre client
+export HP_LIFECYCLE_MODE="${HP_LIFECYCLE_MODE:-minimal}"
+
+# Bucket for the on_create scripts. The AWS managed policy
 # AmazonSageMakerClusterInstanceRolePolicy only grants s3:GetObject/ListBucket
 # on buckets whose name contains "sagemaker", so keep that substring.
 export HP_LCS_BUCKET="${HP_LCS_BUCKET:-}"   # resolved in 00-bootstrap.sh

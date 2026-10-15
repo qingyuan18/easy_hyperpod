@@ -17,6 +17,8 @@
 # creates the cluster or shows you the update command for an existing one.
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+# HP_LCS_S3_URI is non-negotiable: the service requires LifeCycleConfig on every
+# instance group for EKS-orchestrated clusters (see env.sh for the exact error).
 hp_need EKS_CLUSTER_ARN HP_SG_ID PRIVATE_SUBNET_1 HP_EXEC_ROLE_ARN HP_LCS_S3_URI
 
 OUT="${HP_IG_FILE:-$HP_ROOT/.cache/instance-groups.json}"
@@ -40,6 +42,9 @@ else
 fi
 
 # ig <name> <type> <count> <ebs-gb> <accelerator-label> <deep-health-checks-json>
+#
+# LifeCycleConfig is always emitted. The API model marks it optional but the
+# service rejects EKS-orchestrated groups without it.
 ig() {
   jq -n \
     --arg name "$1" --arg type "$2" --argjson count "$3" --argjson ebs "$4" \
@@ -56,7 +61,8 @@ ig() {
       OnStartDeepHealthChecks: $dhc,
       KubernetesConfig: { Labels: { "easy-hyperpod.io/accelerator": $accel } }
     }
-    | if (.OnStartDeepHealthChecks | length) == 0 then del(.OnStartDeepHealthChecks) else . end'
+    | if (.OnStartDeepHealthChecks | length) == 0 then del(.OnStartDeepHealthChecks) else . end
+    | with_entries(select(.value != null))'
 }
 
 hp_log "Generating instance-group spec -> $OUT"
@@ -87,12 +93,20 @@ if [ "$status" = ABSENT ]; then
   # so a stuck provision surfaces instead of hanging the terminal forever.
   HP_WAIT_MINUTES="${HP_WAIT_MINUTES:-60}"
   hp_log "Waiting up to ${HP_WAIT_MINUTES} min for InService (~10-15 min typical, longer with deep health checks)"
+  # ClusterStatus reaching InService is NOT sufficient: groups sized 0 are
+  # InService immediately, so the cluster can report InService while
+  # system-group is still Scaling with CurrentCount < TargetCount. Waiting only
+  # on ClusterStatus returns "ready" before any node exists, and step 07 then
+  # correctly fails with "no Ready nodes". So also require every group to have
+  # reached its target.
   ready=0
   for _ in $(seq 1 $((HP_WAIT_MINUTES * 3))); do
-    status="$(aws sagemaker describe-cluster --cluster-name "$HP_CLUSTER_NAME" --query 'ClusterStatus' --output text)"
-    printf '\r  status: %-18s' "$status"
+    read -r status pending <<<"$(aws sagemaker describe-cluster --cluster-name "$HP_CLUSTER_NAME" \
+      --query '[ClusterStatus, length(InstanceGroups[?CurrentCount < TargetCount])]' --output text)"
+    printf '\r  status: %-12s groups still scaling: %-3s' "$status" "$pending"
     case "$status" in
-      InService) echo; ready=1; break ;;
+      InService)
+        if [ "${pending:-1}" -eq 0 ]; then echo; ready=1; break; fi ;;
       Failed|RollingBack|DeleteFailed)
         echo
         aws sagemaker describe-cluster --cluster-name "$HP_CLUSTER_NAME" --query 'FailureMessage' --output text
@@ -102,8 +116,9 @@ if [ "$status" = ABSENT ]; then
   done
   if [ "$ready" -eq 0 ]; then
     echo
-    hp_warn "Still '$status' after ${HP_WAIT_MINUTES} min. Inspect with:"
-    hp_warn "  aws sagemaker describe-cluster --cluster-name $HP_CLUSTER_NAME --query 'InstanceGroups[].ActiveOperations'"
+    hp_warn "Cluster did not fully settle within ${HP_WAIT_MINUTES} min (status=$status, groups scaling=$pending)."
+    hp_warn "Inspect with:"
+    hp_warn "  aws sagemaker describe-cluster --cluster-name $HP_CLUSTER_NAME --query 'InstanceGroups[].{G:InstanceGroupName,Cur:CurrentCount,Tgt:TargetCount,Ops:ActiveOperations}'"
     exit 1
   fi
 else

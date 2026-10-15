@@ -19,7 +19,7 @@ export AWS_REGION=us-west-2
 export HP_PRIMARY_AZ=us-west-2a                # AZ where you hold GPU capacity
 source scripts/env.sh
 
-./scripts/00-bootstrap.sh            # tooling check, S3 bucket, lifecycle scripts
+./scripts/00-bootstrap.sh            # tooling check, S3 bucket, lifecycle upload
 ./scripts/01-create-vpc.sh           # VPC, subnets, IGW, NAT, S3 endpoint
 ./scripts/02-create-efa-sg.sh        # security group with self-referencing EFA rules
 ./scripts/03-create-iam.sh           # EKS cluster role + HyperPod execution role
@@ -62,7 +62,7 @@ EKS control plane (no managed node group — HyperPod supplies every node)
 | `scripts/0*.sh` | The setup steps, in order |
 | `scripts/90-scale-instance-group.sh` | Scale a group up/down safely |
 | `scripts/99-teardown.sh` | Delete everything (dry run by default) |
-| `lifecycle/` | `on_create.sh` node lifecycle scripts, uploaded to S3 by step 0 |
+| `lifecycle/` | Required `on_create.sh` (+ optional `on_create_main.sh`), uploaded by step 0 |
 | `manifests/` | NCCL EFA benchmark (MPIJob) and a single-node GPU smoke test |
 | `docs/step-by-step-setup.md` | The full guide |
 | `skills/` | Loadable skill for Claude Code / Codex |
@@ -76,6 +76,7 @@ export AWS_REGION=us-east-1
 export HP_PREFIX=my-cluster
 export HP_H200_INSTANCE_TYPE=ml.p6-b200.48xlarge   # swap the template family
 export HP_DEEP_HEALTH_CHECKS=""                    # skip the ~15 min checks
+export HP_LIFECYCLE_MODE=full                      # containerd on /opt/sagemaker + FSx
 source scripts/env.sh
 hp_show                                            # print resolved config + state
 ```
@@ -100,6 +101,15 @@ See [skills/README.md](skills/README.md).
 
 ## Notes
 
+- **A lifecycle script IS required**, despite the API model listing
+  `LifeCycleConfig` as optional. The service rejects EKS-orchestrated groups
+  without it (`LifeCycleConfig must be provided for clusters with EKS
+  orchestrator`), and AWS ships no default — so you must supply one, even a
+  no-op. `HP_LIFECYCLE_MODE=minimal` (default) uploads a log-and-exit
+  `on_create.sh`; `full` also applies the containerd/FSx customisation.
+- **Template instance types must exist in your region** — `create-cluster`
+  validates them even at count 0. Measured in eu-central-1a: `g7e.48xlarge`
+  available, `p5en`/`p5e`/`p5`/`p6-b200` not offered.
 - **Kubernetes 1.33** is the default and is required for EFA RDMA on
   `p6-b200`/`p6-b300`.
 - All GPU nodes land in a **single private subnet**: EFA does not work across

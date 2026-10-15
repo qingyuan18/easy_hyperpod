@@ -19,7 +19,7 @@ export HP_PRIMARY_AZ=us-west-2a        # AZ where the user holds GPU capacity
 source scripts/env.sh                  # config + state from earlier steps
 hp_show                                # ALWAYS do this first to see current state
 
-./scripts/00-bootstrap.sh              # tools, account, S3 lifecycle bucket
+./scripts/00-bootstrap.sh              # tools, account, S3 bucket + lifecycle upload
 ./scripts/01-create-vpc.sh             # VPC, 2+2 subnets, IGW, NAT, S3 endpoint
 ./scripts/02-create-efa-sg.sh          # self-referencing EFA security group
 ./scripts/03-create-iam.sh             # EKS cluster role + HyperPod exec role
@@ -93,20 +93,114 @@ plus `AmazonEKSWorkerNodePolicy`, `AmazonEKS_CNI_Policy`,
 `AmazonEC2ContainerRegistryReadOnly`, `AmazonSSMManagedInstanceCore` — HyperPod
 nodes register into EKS like self-managed nodes and need worker permissions.
 
-**6. The lifecycle bucket name must contain `sagemaker`.**
-`AmazonSageMakerClusterInstanceRolePolicy` scopes its `s3:GetObject` grant to
-that pattern. Any other name needs an extra inline policy (step 3 adds one).
+**6. Managed policies alone are NOT enough — the execution role also needs
+ENI permissions, as an inline policy.** HyperPod creates a "Customer ENI" per
+node in your VPC using this role. No managed policy covers the set:
+`AmazonSageMakerClusterInstanceRolePolicy` is only logs/metrics/S3/SSM, and
+`AmazonEKS_CNI_Policy` is missing `CreateNetworkInterfacePermission`,
+`DeleteNetworkInterfacePermission`, `DescribeVpcs`, `DescribeDhcpOptions` and
+`DescribeSecurityGroups`. `03-create-iam.sh` adds `hyperpod-vpc-eni` for this.
 
-**7. Enable VPC CNI prefix delegation.** Without it a `p5en.48xlarge` exhausts
+Without it the node NEVER comes up and the failure is near-invisible: the
+cluster still reports `InService` (zero-count groups are InService by
+definition), `FailureMessage` is empty, and HyperPod silently loops
+create -> fail -> terminate -> recreate on a lengthening backoff. Verified live
+in eu-central-1.
+
+**7. `aws sagemaker list-cluster-events` is the only place node-provisioning
+failures are visible.** Reach for it first for any "node never appears" report:
+```bash
+aws sagemaker list-cluster-events --cluster-name "$HP_CLUSTER_NAME" --max-results 50 \
+  --query 'reverse(sort_by(Events,&EventTime))[].[EventTime,EventLevel,Description]' --output table
+aws sagemaker describe-cluster-event --cluster-name "$HP_CLUSTER_NAME" --event-id <EventId>
+```
+After fixing permissions you do not need to recreate the cluster, but the
+retry backoff may be long — force an immediate retry by scaling the group to 0
+and back.
+
+**8. `LifeCycleConfig` IS required for EKS orchestration, and there is no
+AWS-provided default.** The API model is misleading here: it lists only
+`InstanceCount`, `InstanceGroupName` and `ExecutionRole` as required, so
+`LifeCycleConfig` *looks* optional. The service rejects it anyway (verified live
+in eu-central-1):
+```
+ValidationException: LifeCycleConfig is required for instance group <name>.
+LifeCycleConfig must be provided for clusters with EKS orchestrator.
+```
+So every group needs `SourceS3Uri` + `OnCreate`, and the S3 bucket plus the
+node's S3 read permission are always needed. You must supply a script even if
+it does nothing. `HP_LIFECYCLE_MODE=minimal` (default) uploads only
+`lifecycle/on_create.sh`, a log-and-exit no-op, which is sufficient because the
+HyperPod AMI already has kubelet/containerd/NVIDIA/EFA and joins EKS itself.
+`HP_LIFECYCLE_MODE=full` also uploads `on_create_main.sh` (moves
+containerd/kubelet onto the secondary EBS volume at `/opt/sagemaker`; installs
+the EFA-aware FSx Lustre client).
+
+The bucket name must contain `sagemaker`, because
+`AmazonSageMakerClusterInstanceRolePolicy` scopes its `s3:GetObject` grant to
+that pattern — any other name needs the inline policy step 3 adds.
+
+**9. `create-cluster` validates instance-type region availability even at
+`InstanceCount: 0`.** An unavailable type fails the whole request (verified in
+eu-central-1):
+```
+ValidationException: The requested instance types are not supported in this
+region [ml.p5en.48xlarge]. Please select a different instance type or use
+another region.
+```
+Check the target AZ, not just the region, before building:
+```bash
+aws ec2 describe-instance-type-offerings --region "$AWS_REGION" \
+  --location-type availability-zone \
+  --filters "Name=location,Values=$HP_PRIMARY_AZ" \
+            "Name=instance-type,Values=g7e.48xlarge,p5en.48xlarge" \
+  --query 'InstanceTypeOfferings[].InstanceType' --output text
+```
+Measured in eu-central-1a: `g7e.48xlarge` available; `p5en`/`p5e`/`p5`/
+`p6-b200` not offered. Swap in something the region has
+(`export HP_H200_INSTANCE_TYPE=ml.g6e.48xlarge HP_H200_GROUP_NAME=g6e-group`).
+
+**10. Install the dependency chart WITHOUT `--wait`, and Helm 4 needs
+`--force-conflicts`.** At step 05 the cluster has zero nodes, so the chart's
+Deployments (mpi-operator, training-operators, cert-manager) are necessarily
+`Pending` and `--wait` blocks until it times out and fails the release. They
+schedule themselves once step 06 brings up `system-group`; check readiness in
+step 07 instead. Separately, two of the chart's ClusterRoles
+(`kubeflow-training-admin`, `*-mpijobs-admin`) carry an `aggregationRule`, so
+Kubernetes' `clusterrole-aggregation-controller` owns their `.rules`; Helm 4's
+server-side apply then conflicts on every re-run. `--force-conflicts` is safe
+because the controller recomputes `.rules` immediately. Also note `helm list -a`
+does not exist in Helm 4 — detect a stuck release with
+`helm status <rel> -o json | jq -r .info.status`.
+
+**11. Enable VPC CNI prefix delegation.** Without it a `p5en.48xlarge` exhausts
 its secondary-IP budget and pods sit `Pending` with no obvious cause.
 
-**8. No managed node group.** HyperPod supplies every node. CoreDNS stays
+**12. No managed node group.** HyperPod supplies every node. CoreDNS stays
 `Pending` until `system-group` is up — that is expected, not a bug.
 
-**9. Never hand-write a partial `--instance-groups` list** for
+**13. `describe-cluster` output is NOT a valid `update-cluster` input.** The
+details and specification shapes differ and must be translated:
+`ClusterKubernetesConfigDetails` returns `CurrentLabels`/`DesiredLabels`/
+`CurrentTaints`/`DesiredTaints`, while `ClusterKubernetesConfig` accepts only
+`Labels`/`Taints`; `InstanceStorageConfigs` comes back with a read-only
+`RootVolume`. Passing it through verbatim fails with
+`Unknown parameter in InstanceGroups[N].KubernetesConfig: CurrentLabels, must
+be one of: Labels, Taints`. `90-scale-instance-group.sh` does the translation —
+reuse it rather than rolling your own.
+
+**14. Never hand-write a partial `--instance-groups` list** for
 `update-cluster`. Read the live spec back with `describe-cluster` and change
 only the target count, as `90-scale-instance-group.sh` does. A partial list
 clobbers the other groups' configuration.
+
+**15. On teardown, delete the EKS-managed cluster security group yourself.**
+EKS is supposed to remove `eks-cluster-sg-<cluster>-*` when the cluster goes
+away, but it does so asynchronously and lags well past
+`aws eks wait cluster-deleted`. While it lingers, `delete-vpc` fails with a
+dependency violation and the VPC is orphaned. `99-teardown.sh` deletes it
+explicitly (plus any other non-default SG in the VPC) and retries the VPC
+deletion. Observed taking several minutes after the cluster was already gone.
 
 ## Scheduling onto a group
 
@@ -165,20 +259,47 @@ Common symptoms:
 | Symptom | Cause |
 |---|---|
 | Slow / hanging multi-node NCCL | Self-referencing SG rules (fact 1) |
-| Node never Ready | Lifecycle script failure — read `provisioning.log` |
-| Pods Pending with free GPUs | IP exhaustion — prefix delegation (fact 7) |
-| CoreDNS Pending right after step 4 | Expected until `system-group` exists (fact 8) |
+| **Node never appears, cluster says `InService`, `FailureMessage` empty** | **Execution role missing ENI permissions (fact 6) — read the event stream (fact 7)** |
+| Node provisioned but never Ready | Lifecycle script failure — read `provisioning.log` |
+| Pods Pending with free GPUs | IP exhaustion — prefix delegation (fact 11) |
+| CoreDNS Pending right after step 4 | Expected until `system-group` exists (fact 12) |
+| Chart Deployments Pending at step 5 | Expected — no nodes yet; do not use `--wait` (fact 10) |
+| `helm upgrade` conflicts on ClusterRoles | Helm 4 server-side apply; needs `--force-conflicts` (fact 10) |
 | `create-cluster` capacity error | Keep GPU groups at 0; scale when capacity exists |
+| `create-cluster` unsupported instance type | Template type not offered in this region (fact 9) |
+| `update-cluster` "Unknown parameter ... CurrentLabels" | Fed `describe-cluster` output back verbatim (fact 13) |
 | Faulty nodes not replaced | Helm chart installed after the cluster (fact 4) |
+| `delete-vpc` dependency violation | EKS cluster SG still lingering (fact 15) |
+
+**`ClusterStatus: InService` does not mean ready.** Groups sized 0 are
+`InService` immediately, so the cluster reports `InService` while
+`system-group` is still scaling at `CurrentCount: 0`. Gate on
+`length(InstanceGroups[?CurrentCount < TargetCount]) == 0` as well, which is
+what `06-create-hyperpod.sh` waits for.
 
 ## Lifecycle scripts
 
-`lifecycle/on_create.sh` (entrypoint, logs to
-`/var/log/provision/provisioning.log`) delegates to
-`lifecycle/on_create_main.sh`, which moves the containerd data root and the
-kubelet directory onto the secondary EBS volume at `/opt/sagemaker` (container
-images for LLM work do not fit on the root volume), then configures the EFA
-FSx Lustre client when EFA is present.
+Mandatory, not optional — see fact 8. Two modes, selected with
+`HP_LIFECYCLE_MODE` before running `00-bootstrap.sh`:
 
-Edit, then re-upload — `00-bootstrap.sh` syncs `lifecycle/` to S3. Existing
-nodes are not re-provisioned; the change applies to nodes created afterwards.
+| Mode | Uploaded | Behaviour |
+|---|---|---|
+| `minimal` (default) | `on_create.sh` only | Logs to `/var/log/provision/provisioning.log` and exits. Satisfies the service requirement, changes nothing on the node. |
+| `full` | `on_create.sh` + `on_create_main.sh` | The entrypoint runs `on_create_main.sh`, which moves the containerd data root and kubelet dir onto the secondary EBS volume at `/opt/sagemaker` (LLM images do not fit on the root volume), then configures the EFA-aware FSx Lustre client when EFA is present. |
+
+`on_create.sh` runs `on_create_main.sh` only if it is present next to it, so
+the same entrypoint works in both modes.
+
+To change a script: edit it, re-run `00-bootstrap.sh` to re-upload (minimal
+copies just the entrypoint and removes `on_create_main.sh` from the prefix;
+full syncs the directory). Existing nodes are not re-provisioned — the change
+applies to nodes created afterwards, so to roll it out, scale the group to 0
+and back up.
+
+Confirm a script actually ran, via the event stream rather than guessing:
+
+```bash
+aws sagemaker list-cluster-events --cluster-name "$HP_CLUSTER_NAME" \
+  --query 'Events[?contains(Description,`lifecycle`)].[EventTime,Description]' --output table
+# "Instance lifecycle script execution for EC2 Instance i-... has Succeeded"
+```

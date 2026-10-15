@@ -49,7 +49,7 @@ hp_save HP_SECONDARY_AZ  "$HP_SECONDARY_AZ"
 hp_save EKS_CLUSTER_NAME "$EKS_CLUSTER_NAME"
 hp_save HP_CLUSTER_NAME  "$HP_CLUSTER_NAME"
 
-# --- Lifecycle script bucket ------------------------------------------------
+# --- Lifecycle script bucket (always required for EKS orchestration) --------
 # Name must contain "sagemaker" so AmazonSageMakerClusterInstanceRolePolicy
 # grants the nodes read access without a custom inline policy.
 if [ -z "${HP_LCS_BUCKET:-}" ]; then
@@ -76,9 +76,25 @@ else
 fi
 hp_save HP_LCS_BUCKET "$HP_LCS_BUCKET"
 
-hp_log "Uploading lifecycle scripts to s3://$HP_LCS_BUCKET/$HP_LCS_PREFIX/"
-aws s3 sync "$HP_ROOT/lifecycle/" "s3://$HP_LCS_BUCKET/$HP_LCS_PREFIX/" --delete
+# EKS-orchestrated instance groups must reference an OnCreate script, so this
+# upload is mandatory, not a convenience. See env.sh for the exact API error.
+hp_log "Uploading lifecycle scripts (mode=$HP_LIFECYCLE_MODE) to s3://$HP_LCS_BUCKET/$HP_LCS_PREFIX/"
+case "$HP_LIFECYCLE_MODE" in
+  minimal)
+    # Only the entrypoint. It logs and exits, which is enough to satisfy the
+    # service requirement without changing anything on the node.
+    aws s3 cp "$HP_ROOT/lifecycle/on_create.sh" "s3://$HP_LCS_BUCKET/$HP_LCS_PREFIX/on_create.sh"
+    aws s3 rm "s3://$HP_LCS_BUCKET/$HP_LCS_PREFIX/on_create_main.sh" 2>/dev/null || true
+    ;;
+  full)
+    aws s3 sync "$HP_ROOT/lifecycle/" "s3://$HP_LCS_BUCKET/$HP_LCS_PREFIX/" --delete
+    ;;
+  *)
+    echo "ERROR: HP_LIFECYCLE_MODE must be 'minimal' or 'full' (got '$HP_LIFECYCLE_MODE')"; exit 1 ;;
+esac
+hp_save HP_LIFECYCLE_MODE "$HP_LIFECYCLE_MODE"
 hp_save HP_LCS_S3_URI "s3://$HP_LCS_BUCKET/$HP_LCS_PREFIX/"
+aws s3 ls "s3://$HP_LCS_BUCKET/$HP_LCS_PREFIX/" | sed 's/^/  /'
 
 hp_log "Bootstrap complete"
 hp_show

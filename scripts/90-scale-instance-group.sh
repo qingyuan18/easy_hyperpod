@@ -33,9 +33,18 @@ hp_log "Scaling $GROUP: $CURRENT -> $COUNT"
 # Project the details shape onto the specification shape, keeping only members
 # that CreateCluster/UpdateCluster accept.
 #
-# The `walk` pass strips nulls RECURSIVELY. A top-level-only strip is not
-# enough: describe-cluster returns things like KubernetesConfig.Taints=null,
-# and sending that back is rejected because Taints must be a list.
+# These shapes genuinely differ and must be translated, not passed through:
+#   ClusterKubernetesConfigDetails -> CurrentLabels/DesiredLabels/
+#                                     CurrentTaints/DesiredTaints
+#   ClusterKubernetesConfig        -> Labels/Taints
+# Forwarding the details verbatim fails with
+#   "Unknown parameter in InstanceGroups[N].KubernetesConfig: CurrentLabels,
+#    must be one of: Labels, Taints"
+# We take the Desired* values, since those are the declared intent.
+# Likewise InstanceStorageConfigs comes back with a read-only RootVolume field.
+#
+# The `walk` pass then strips nulls recursively; a top-level-only strip is not
+# enough because nested members come back null too.
 NEW="$(echo "$SPEC" | jq --arg g "$GROUP" --argjson c "$COUNT" '
   [ .[] | {
       InstanceGroupName,
@@ -43,13 +52,18 @@ NEW="$(echo "$SPEC" | jq --arg g "$GROUP" --argjson c "$COUNT" '
       InstanceCount: (if .InstanceGroupName == $g then $c else .TargetCount end),
       ExecutionRole,
       ThreadsPerCore,
-      InstanceStorageConfigs,
+      InstanceStorageConfigs: (.InstanceStorageConfigs
+        | if . then [ .[] | {EbsVolumeConfig: {VolumeSizeInGB: .EbsVolumeConfig.VolumeSizeInGB}} ] else null end),
       LifeCycleConfig: (.LifeCycleConfig | if . then {SourceS3Uri, OnCreate} else null end),
       OnStartDeepHealthChecks,
-      KubernetesConfig
+      KubernetesConfig: (.KubernetesConfig | if . then {
+          Labels: (.DesiredLabels // .CurrentLabels),
+          Taints: (.DesiredTaints // .CurrentTaints)
+        } else null end)
     }
   ]
-  | walk(if type == "object" then with_entries(select(.value != null)) else . end)')"
+  | walk(if type == "object" then with_entries(select(.value != null)) else . end)
+  | walk(if type == "object" then with_entries(select((.value | type) != "array" or (.value | length) > 0)) else . end)')"
 
 TMP="$(mktemp -t hp-ig-XXXXXX.json)"
 echo "$NEW" >"$TMP"

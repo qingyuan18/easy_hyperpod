@@ -143,6 +143,27 @@ if [ -n "${HP_SG_ID:-}" ]; then
     --ip-permissions "IpProtocol=-1,UserIdGroupPairs=[{GroupId=$HP_SG_ID}]"
   retry_run aws ec2 delete-security-group --group-id "$HP_SG_ID"
 fi
+
+# EKS creates its own "cluster security group" and is supposed to remove it
+# when the cluster goes away - but it does so asynchronously and lags well past
+# `wait cluster-deleted`. While it lingers, delete-vpc fails with a dependency
+# violation. Deleting it ourselves is safe once the cluster is gone, and it is
+# what lets the VPC deletion succeed on the first pass.
+if [ -n "${EKS_CLUSTER_SG_ID:-}" ]; then
+  hp_log "Removing the EKS-managed cluster security group (blocks delete-vpc)"
+  retry_run aws ec2 delete-security-group --group-id "$EKS_CLUSTER_SG_ID"
+fi
+
+# Catch any other non-default security group still in the VPC, for the same
+# reason. `default` cannot be deleted and goes away with the VPC.
+if [ "$DRY" -eq 0 ] && [ -n "${VPC_ID:-}" ]; then
+  for sg in $(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" \
+      --query 'SecurityGroups[?GroupName!=`default`].GroupId' --output text 2>/dev/null); do
+    hp_log "Removing leftover security group $sg"
+    retry_run aws ec2 delete-security-group --group-id "$sg"
+  done
+fi
+
 [ -n "${VPC_ID:-}" ] && retry_run aws ec2 delete-vpc --vpc-id "$VPC_ID"
 
 # --- 4. IAM -----------------------------------------------------------------
