@@ -1,1 +1,0 @@
-docker build --tag text-generation-webui-proxy .
