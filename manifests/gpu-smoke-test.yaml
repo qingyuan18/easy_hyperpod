@@ -1,0 +1,32 @@
+# Quick single-node check that a GPU node is schedulable and the NVIDIA device
+# plugin is advertising GPUs. Prints nvidia-smi and the EFA device list.
+#
+#   kubectl apply -f manifests/gpu-smoke-test.yaml
+#   kubectl logs -f gpu-smoke-test
+#   kubectl delete -f manifests/gpu-smoke-test.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-smoke-test
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    easy-hyperpod.io/accelerator: h200     # or: g7e
+  containers:
+    - name: smoke
+      image: public.ecr.aws/hpc-cloud/nccl-tests:latest
+      command: ["bash", "-lc"]
+      args:
+        - |
+          set -x
+          nvidia-smi
+          nvidia-smi topo -m
+          echo "--- EFA devices visible to this pod ---"
+          /opt/amazon/efa/bin/fi_info -p efa || echo "NO EFA PROVIDER FOUND"
+      resources:
+        limits:
+          nvidia.com/gpu: 8
+          vpc.amazonaws.com/efa: 16        # p5en=16, p5=32, g7e.48xlarge=1
+        requests:
+          nvidia.com/gpu: 8
+          vpc.amazonaws.com/efa: 16

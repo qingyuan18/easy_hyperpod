@@ -1,0 +1,13 @@
+# Resource IDs discovered at runtime - machine-specific, never commit
+.hyperpod-state
+
+# Cloned helm charts, generated instance-group JSON
+.cache/
+
+# Never commit credentials or keys
+*.pem
+*.key
+credentials
+
+.DS_Store
+*.swp

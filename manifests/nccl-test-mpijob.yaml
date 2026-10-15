@@ -1,0 +1,102 @@
+# NCCL all-reduce test across two EFA GPU nodes, via the MPI Operator that the
+# HyperPod dependency chart installs (step 5).
+#
+#   kubectl apply -f manifests/nccl-test-mpijob.yaml
+#   # the MPI Operator suffixes the launcher pod name, so select it by label:
+#   kubectl logs -f --tail=100 \
+#     -l training.kubeflow.org/job-name=nccl-test,training.kubeflow.org/job-role=launcher
+#
+# Adjust for your group before applying:
+#   nodeSelector  - easy-hyperpod.io/accelerator: h200 | g7e
+#   replicas (Worker) - number of nodes
+#   nvidia.com/gpu / vpc.amazonaws.com/efa - per-node GPU and EFA device counts
+#     ml.p5en.48xlarge -> gpu 8, efa 16
+#     ml.p5.48xlarge   -> gpu 8, efa 32
+#     ml.g7e.48xlarge  -> gpu 8, efa 1
+#
+# Expected inter-node busbw on p5en at 1-8 GB: ~250-350 GB/s.
+# Single-digit GB/s means EFA is not in use - check the self-referencing
+# security-group rules (scripts/07-verify.sh).
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  name: nccl-test
+spec:
+  slotsPerWorker: 8
+  runPolicy:
+    cleanPodPolicy: Running
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: nccl-test-launcher
+              image: public.ecr.aws/hpc-cloud/nccl-tests:latest
+              imagePullPolicy: Always
+              command:
+                - mpirun
+              args:
+                - --allow-run-as-root
+                - -np
+                - "16"                     # total GPUs = nodes x GPUs-per-node
+                - -N
+                - "8"                      # GPUs per node
+                - --bind-to
+                - none
+                # EFA: use all available devices and the shared-memory protocol.
+                - -x
+                - FI_PROVIDER=efa
+                - -x
+                - FI_EFA_USE_DEVICE_RDMA=1
+                - -x
+                - NCCL_DEBUG=INFO
+                # Keep NCCL off the Docker bridge and the loopback interface.
+                - -x
+                - NCCL_SOCKET_IFNAME=^lo,docker
+                - -x
+                - LD_LIBRARY_PATH=/opt/amazon/efa/lib:/opt/amazon/openmpi/lib:/opt/nccl/build/lib:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+                - /opt/nccl-tests/build/all_reduce_perf
+                - -b
+                - "8"                      # min message size
+                - -e
+                - "8G"                     # max message size
+                - -f
+                - "2"                      # size multiplier per step
+                - -g
+                - "1"                      # GPUs per MPI rank
+                - -c
+                - "1"                      # check correctness
+                - -n
+                - "100"                    # iterations
+    Worker:
+      replicas: 2                          # number of nodes
+      template:
+        spec:
+          nodeSelector:
+            easy-hyperpod.io/accelerator: h200
+          containers:
+            - name: nccl-test-worker
+              image: public.ecr.aws/hpc-cloud/nccl-tests:latest
+              imagePullPolicy: Always
+              resources:
+                limits:
+                  nvidia.com/gpu: 8
+                  vpc.amazonaws.com/efa: 16
+                  hugepages-2Mi: 5120Mi
+                  memory: 32000Mi
+                requests:
+                  nvidia.com/gpu: 8
+                  vpc.amazonaws.com/efa: 16
+                  hugepages-2Mi: 5120Mi
+                  memory: 32000Mi
+              volumeMounts:
+                # NCCL/CUDA need more than the default 64 MB /dev/shm.
+                - name: shmem
+                  mountPath: /dev/shm
+          volumes:
+            - name: shmem
+              emptyDir:
+                medium: Memory
+                sizeLimit: 8Gi
