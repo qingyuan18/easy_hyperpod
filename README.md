@@ -101,15 +101,14 @@ See [skills/README.md](skills/README.md).
 
 ## Notes
 
-- **A lifecycle script IS required**, despite the API model listing
-  `LifeCycleConfig` as optional. The service rejects EKS-orchestrated groups
-  without it (`LifeCycleConfig must be provided for clusters with EKS
-  orchestrator`), and AWS ships no default — so you must supply one, even a
-  no-op. `HP_LIFECYCLE_MODE=minimal` (default) uploads a log-and-exit
-  `on_create.sh`; `full` also applies the containerd/FSx customisation.
+- **A lifecycle script is required.** Every EKS-orchestrated instance group
+  must carry `LifeCycleConfig`, and AWS ships no default — you supply one even
+  if it does nothing. `HP_LIFECYCLE_MODE=minimal` (default) uploads a
+  log-and-exit `on_create.sh`; `full` also moves containerd/kubelet onto the
+  secondary EBS volume and installs the EFA-aware FSx Lustre client.
 - **Template instance types must exist in your region** — `create-cluster`
-  validates them even at count 0. Measured in eu-central-1a: `g7e.48xlarge`
-  available, `p5en`/`p5e`/`p5`/`p6-b200` not offered.
+  validates them even at count 0. In eu-central-1a, for example,
+  `g7e.48xlarge` is available while `p5en`/`p5e`/`p5`/`p6-b200` are not.
 - **Kubernetes 1.33** is the default and is required for EFA RDMA on
   `p6-b200`/`p6-b300`.
 - All GPU nodes land in a **single private subnet**: EFA does not work across

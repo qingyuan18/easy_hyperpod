@@ -67,22 +67,20 @@ aws sts get-caller-identity
 ./scripts/00-bootstrap.sh
 ```
 
-### 关于 lifecycle 脚本：EKS 编排下**必须**配，而且没有默认脚本
+### 关于 lifecycle 脚本：EKS 编排下必须配，且 AWS 不提供默认脚本
 
-这里有个很容易被 API 文档误导的点。SageMaker API 模型里
-`ClusterInstanceGroupSpecification` 的 `required` 只列了三项 ——
-`InstanceCount`、`InstanceGroupName`、`ExecutionRole` —— 看起来
-`LifeCycleConfig` 是选填的。
-
-**实际不是。** 不传会被服务端直接拒掉（eu-central-1 实测）：
+每个实例组都必须带 `LifeCycleConfig`（`SourceS3Uri` + `OnCreate`）。注意
+SageMaker API 模型里 `ClusterInstanceGroupSpecification` 的 `required` 只列了
+`InstanceCount`、`InstanceGroupName`、`ExecutionRole` 三项，但服务端有额外校验，
+不传会被拒：
 
 ```
 ValidationException: LifeCycleConfig is required for instance group system-group.
 LifeCycleConfig must be provided for clusters with EKS orchestrator.
 ```
 
-而且 **AWS 不提供默认脚本**，必须你自己给一个，哪怕是空操作的。所以 S3 桶和
-节点的 S3 读权限也是始终需要的。
+AWS 不提供默认脚本，必须你自己给一个，哪怕是空操作的。因此 S3 桶和节点的 S3
+读权限也是始终需要的。
 
 本仓库给了两档，用 `HP_LIFECYCLE_MODE` 选：
 
@@ -100,6 +98,20 @@ containerd、NVIDIA 驱动栈、EFA 驱动，并会自己加入 EKS 集群，所
 - 把 containerd 的 data-root 和 kubelet 目录迁到挂在 `/opt/sagemaker` 的
   第二块 EBS 卷上（大的 LLM 镜像放不进根卷）
 - 装 EFA 版的 FSx Lustre 客户端
+
+`full` 在 CPU 机型上同样适用：它写入的 containerd 配置把
+`default_runtime_name` 设为 `nvidia`，而 HyperPod AMI 即使在无 GPU 的机型上也
+预装了 `/usr/bin/nvidia-container-runtime`，所以 m5 这类机器照样正常。
+
+确认脚本是否真正生效（而非仅退出码为 0），在节点上查这几项：
+
+```bash
+tail -1 /var/log/provision/provisioning.log   # [SageMaker] The lifecycle scripts succeeded.
+readlink /var/lib/kubelet                     # /opt/sagemaker/kubelet
+grep '^root' /opt/sagemaker/containerd/config.toml
+df -h /opt/sagemaker                          # 应是独立的第二块卷
+du -sh /opt/sagemaker/containerd/data-root    # 镜像确实落在这里
+```
 
 桶名**必须包含 `sagemaker`**：AWS 托管策略
 `AmazonSageMakerClusterInstanceRolePolicy` 的 `s3:GetObject` 授权范围就是按这个
@@ -232,7 +244,7 @@ HyperPod 节点是以自管节点的方式注册进 EKS 的，所以这个角色
 | `AmazonSSMManagedInstanceCore` | 用 `aws ssm start-session` 登上节点排查 |
 | **内联 `hyperpod-vpc-eni`** | **创建 Customer ENI。没有任何托管策略覆盖这组权限** |
 
-最后那条内联策略是必须的，而且是实测踩出来的：HyperPod 要用这个角色在你的 VPC
+最后那条内联策略是必须的：HyperPod 要用这个角色在你的 VPC
 里为每个节点创建 "Customer ENI"，需要
 `ec2:CreateNetworkInterface`/`CreateNetworkInterfacePermission`/
 `DeleteNetworkInterface`/`DeleteNetworkInterfacePermission`/
@@ -369,14 +381,14 @@ aws sagemaker create-cluster \
 ```
 
 > **`create-cluster` 即使对 count=0 的组也校验机型的 region 可用性。**
-> eu-central-1 实测，用默认模版会被拒：
+> 机型在当前 region 不提供时，整个建集群请求会被拒：
 > ```
 > ValidationException: The requested instance types are not supported in this
 > region [ml.p5en.48xlarge]. Please select a different instance type or use
 > another region.
 > ```
-> 注意它只报了 `p5en` 而没报 `g7e` —— 说明 g7e 在法兰克福是支持的。
-> 所以建组前先确认机型在当前 region、以及你要用的那个 AZ 真实提供：
+> 报错只列出不支持的机型，所以建组前先确认机型在当前 region、以及你要用的那个
+> AZ 真实提供：
 > ```bash
 > for t in g7e.48xlarge p5en.48xlarge; do
 >   printf "%-18s %s\n" "$t" "$(aws ec2 describe-instance-type-offerings \
@@ -385,8 +397,8 @@ aws sagemaker create-cluster \
 >     --query 'InstanceTypeOfferings[].InstanceType' --output text)"
 > done
 > ```
-> 实测结果举例（eu-central-1a）：`g7e.48xlarge` **有**，而
-> `p5en`/`p5e`/`p5`/`p6-b200` 全都**不提供**。换成该 region 有的机型即可：
+> 例（eu-central-1a）：`g7e.48xlarge` 可用，`p5en`/`p5e`/`p5`/`p6-b200` 不提供。
+> 换成该 region 有的机型即可：
 > ```bash
 > export HP_H200_INSTANCE_TYPE=ml.g6e.48xlarge HP_H200_GROUP_NAME=g6e-group
 > ```
@@ -511,7 +523,7 @@ aws sagemaker describe-cluster-event --cluster-name "$HP_CLUSTER_NAME" --event-i
 `CurrentCount=0` 且 `ActiveOperations.Scaling=1`，HyperPod 每约 2 分钟静默地
 "创建 → 失败 → 终止 → 重建"循环，退避越来越长。
 
-实测踩到过的一例，事件里是：
+典型报错：
 
 ```
 Error: Failed to create Customer ENI for instance
